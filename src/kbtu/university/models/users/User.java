@@ -1,12 +1,15 @@
 package kbtu.university.models.users;
 
+import kbtu.university.core.LocalizationManager;
 import kbtu.university.enums.Language;
+import kbtu.university.models.academic.JournalObserver;
+import kbtu.university.models.reserach.ResearchPaper;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
 import java.util.Objects;
 
-public abstract class User implements Serializable,Comparable<User> {
+public abstract class User implements Serializable,Comparable<User> , JournalObserver {
     private static final long serialVersionUID = 1L;
 
     private String id;
@@ -20,7 +23,7 @@ public abstract class User implements Serializable,Comparable<User> {
         this.login = login;
         this.password = password;
         this.name = name;
-        this.language = Language.ENG;
+        this.language = Language.EN;
     }
 
     public boolean isAuthenticated(String loginOrId, String password){
@@ -29,6 +32,17 @@ public abstract class User implements Serializable,Comparable<User> {
         boolean passMatch = this.password != null && this.password.equals(password);
 
         return (idMatch || loginMatch) && passMatch;
+    }
+
+    @Override
+    public void notifyNewPaper(String journalName, ResearchPaper paper) {
+        LocalizationManager lm = LocalizationManager.getInstance();
+
+        String msgEn = "\n[NOTIFICATION FOR " + name.toUpperCase() + "] New paper in '" + journalName + "': " + paper.getTitle();
+        String msgKz = "\n[" + name.toUpperCase() + " ҮШІН ХАБАРЛАМА] '" + journalName + "' журналында жаңа мақала: " + paper.getTitle();
+        String msgRu = "\n[УВЕДОМЛЕНИЕ ДЛЯ " + name.toUpperCase() + "] Новая статья в '" + journalName + "': " + paper.getTitle();
+
+        System.out.println(lm.getString(msgEn, msgKz, msgRu));
     }
 
     @Override
@@ -45,8 +59,9 @@ public abstract class User implements Serializable,Comparable<User> {
     }
 
     @Override
-    public int compareTo(@NotNull User o) {
-        return this.name.compareToIgnoreCase(o.name);
+    public int compareTo(User o) {
+        if (o == null) return 1;
+        return this.id.compareTo(o.getId());
     }
 
     public String getPassword() {
@@ -88,5 +103,6 @@ public abstract class User implements Serializable,Comparable<User> {
     public void changeLanguage(Language language) {
         this.language = language;
     }
+
 
 }

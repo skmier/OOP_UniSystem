@@ -33,5 +33,9 @@ public class UserActionLog implements Serializable {
     public String getDetails() {
         return details;
     }
+    @Override
+    public String toString() {
+        return "[" + timestamp + "] Admin ID: " + adminId + " | Action: " + actionType + " | Details: " + details;
+    }
 
 }

@@ -1,6 +1,9 @@
 package kbtu.university.models.academic;
 
+import kbtu.university.enums.RequestStatus;
 import kbtu.university.enums.UrgencyLevel;
+import kbtu.university.models.users.Student;
+import kbtu.university.models.users.Teacher;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -10,36 +13,34 @@ import java.util.List;
 public class Complaint implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final String senderName;
-    private final String studentName;
-    private final String details;
-    private final UrgencyLevel urgency;
-    private final Date timestamp;
-    private boolean isResolved;
+    private String id;
+    private Teacher sender;
+    private Student studentAbout;
+    private String text;
+    private UrgencyLevel urgencyLevel;
+    private Date timestamp;
+    private RequestStatus status;
 
-    public Complaint(String senderName, String studentName, String details, UrgencyLevel urgency) {
-        this.senderName = senderName;
-        this.studentName = studentName;
-        this.details = details;
-        this.urgency = urgency;
+
+    public Complaint(Teacher sender, Student studentAbout, String text, UrgencyLevel urgencyLevel) {
+        this.sender = sender;
+        this.studentAbout = studentAbout;
+        this.text = text;
+        this.urgencyLevel = urgencyLevel;
         this.timestamp = new Date();
-        this.isResolved = false;
+        this.status = RequestStatus.VIEWED;
     }
 
-    public void resolve() {
-        this.isResolved = true;
-    }
+    public Teacher getSender() { return sender; }
+    public Student getStudentAbout() { return studentAbout; }
+    public String getText() { return text; }
+    public UrgencyLevel getUrgencyLevel() { return urgencyLevel; }
+    public Date getTimestamp() { return timestamp;}
+    public RequestStatus getStatus() { return status; }
+    public void setStatus(RequestStatus status) { this.status = status; }
 
     @Override
     public String toString() {
-        String status = isResolved ? "[RESOLVED]" : "[PENDING]";
-        return String.format("%s [%s] Urgency: %s | From Teacher: %s | On Student: %s -> Details: %s",
-                status, timestamp, urgency, senderName, studentName, details);
+        return "[" + urgencyLevel + "] Complaint by " + sender.getName() + " on " + studentAbout.getName() + ": " + text;
     }
-
-    public String getSenderName() { return senderName; }
-    public String getStudentName() { return studentName; }
-    public String getDetails() { return details; }
-    public UrgencyLevel getUrgency() { return urgency; }
-    public boolean isResolved() { return isResolved; }
 }

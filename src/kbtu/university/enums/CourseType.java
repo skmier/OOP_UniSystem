@@ -1,5 +1,5 @@
 package kbtu.university.enums;
 
 public enum CourseType {
-    MAJOR, MINOR, FREE_ELECTIVE
+    MAJOR, MINOR, FREE_ELECTIVE,REQUIRED
 }

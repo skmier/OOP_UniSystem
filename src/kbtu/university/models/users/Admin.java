@@ -1,6 +1,7 @@
 package kbtu.university.models.users;
 
 import kbtu.university.core.DataStorage;
+import kbtu.university.core.LocalizationManager;
 
 import java.util.List;
 
@@ -16,92 +17,113 @@ public class Admin extends User{
         db.getActionLogs().add(new UserActionLog(this.getId(),actionType,details));
     }
 
-    public void addUser(User user){
-        DataStorage db = DataStorage.getInstance();
-        if(!db.getUsers().contains(user)){
-            db.getUsers().add(user);
-            saveAction("CREATE","NEW USER " + user.getName() + " created ");
-            System.out.println("[SUCCESS] New user " + user.getName() + " is created");
-        }else {
-            System.out.println("[ERROR] User with such name is exist");
+    public void addUser(User newUser) {
+        if (newUser == null) return;
+
+        LocalizationManager lm = LocalizationManager.getInstance();
+        DataStorage ds = DataStorage.getInstance();
+        String login = newUser.getLogin();
+        boolean loginExists = ds.getUsers().stream()
+                .anyMatch(u -> u.getLogin().equalsIgnoreCase(login));
+
+        if (loginExists) {
+            System.out.println(lm.getString(
+                    "[ADMIN ERROR] Login '" + login + "' is already taken!",
+                    "[АДМИН ҚАТЕ] '" + login + "' логині бос емес!",
+                    "[АДМИН ОШИБКА] Логин '" + login + "' уже занят!"
+            ));
+            return;
+        }
+
+        ds.getUsers().add(newUser);
+
+        ds.getActionLogs().add(new UserActionLog(this.getId(), "ADD_USER", "Added user: " + login));
+        ds.save();
+
+        System.out.println(lm.getString(
+                "[ADMIN SUCCESS] User (" + newUser.getName() + ") successfully added.",
+                "[АДМИН] Пайдаланушы (" + newUser.getName() + ") сәтті қосылды.",
+                "[ADMIN УСПЕШНО] Пользователь (" + newUser.getName() + ") успешно добавлен."
+        ));
+    }
+
+    public void removeUser(String userId) {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        DataStorage ds = DataStorage.getInstance();
+
+        boolean removed = ds.getUsers().removeIf(u -> u.getId().equals(userId));
+
+        if (removed) {
+            saveAction("REMOVE_USER", "Removed user ID: " + userId);
+            ds.save();
+            System.out.println(lm.getString("[SUCCESS] User removed.", "[CӘТТІ] Өшірілді.", "[УСПЕШНО] Пользователь удален."));
+        } else {
+            System.out.println(lm.getString("[ERROR] Not found.", "[ҚАТЕ] Табылмады.", "[ОШИБКА] Не найден."));
         }
     }
 
-    public void removeUser(String id){
+    public void updateUserData(String id, String newName, String newPassword, int newYear) {
         DataStorage db = DataStorage.getInstance();
-        boolean removed = false;
-        for (int i = db.getUsers().size() - 1; i >= 0; i--){
-            User user = db.getUsers().get(i);
-            if(user.getId().equals(id)){
-                db.getUsers().remove(i);
-                removed = true;
-                break;
-            }
-        }
+        LocalizationManager lm = LocalizationManager.getInstance();
 
-        if(removed){
-            saveAction("DELETE","User with id: " + id + " deleted");
+        User userToUpdate = db.getUsers().stream()
+                .filter(u -> u.getId().equals(id))
+                .findFirst()
+                .orElse(null);
+
+        if (userToUpdate != null) {
+            userToUpdate.setName(newName);
+            userToUpdate.setPassword(newPassword);
+
+            if (userToUpdate instanceof Student) {
+                ((Student) userToUpdate).setYearOfStudy(newYear);
+            }
+
+            db.getActionLogs().add(new UserActionLog(this.getId(), "UPDATE_USER", "Updated data for ID: " + id));
             db.save();
-            System.out.println("[SUCCESS] user is deleted");
-        }else {
-            System.out.println("[ERROR] user with such id doesnt exist");
+
+            System.out.println(lm.getString(
+                    "[SUCCESS] Data updated.",
+                    "[СӘТТІ] Мәліметтер өзгертілді.",
+                    "[УСПЕШНО] Данные обновлены."
+            ));
+        } else {
+            System.out.println("[ERROR] User not found.");
         }
     }
 
-    public void updateUser(String id, String newName, String newPassword){
-        DataStorage db = DataStorage.getInstance();
-        User user = null;
-        for(User u : db.getUsers()){
-            if(u.getId().equals(id)){
-                user = u;
-                break;
-            }
+    public void viewActionLogs() {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        System.out.println("\n=== " + lm.getString("SYSTEM ACTION LOGS", "ЖҮЙЕ ЛОГТАРЫ", "СИСТЕМНЫЕ ЛОГИ ДЕЙСТВИЙ") + " ===");
+
+        if (DataStorage.getInstance().getActionLogs().isEmpty()) {
+            System.out.println(lm.getString("Logs are empty.", "Логтар бос.", "Логи пусты."));
+            return;
         }
 
-
-        if(user != null){
-            String oldName = user.getName();
-
-            user.setName(newName);
-            user.setPassword(newPassword);
-
-            saveAction("UPDATE","User: "+ oldName + "`s data is updated");
-            System.out.println("[SUCCESS] User data updated");
-        }else {
-            System.out.println("[ERROR] user with such id doesnt exist");
+        for (UserActionLog log : DataStorage.getInstance().getActionLogs()) {
+            System.out.println(log);
         }
     }
 
-    public void viewAllUsers(){
-        DataStorage db = DataStorage.getInstance();
-        System.out.println("\n=============================================");
-        System.out.println("                 All users                   ");
-        System.out.println("=============================================");
-        if(!db.getUsers().isEmpty()){
-            for (User u: db.getUsers()){
-                System.out.println(u);
-            }
-            System.out.println("=============================================");
-        }
-        else {
-            System.out.println("User table is empty");
+
+
+    public void viewAllUsers() {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        List<User> users = DataStorage.getInstance().getUsers();
+
+        System.out.println("\n=== " + lm.getString("ALL USERS", "БАРЛЫҚ ПАЙДАЛАНУШЫЛАР", "ВСЕ ПОЛЬЗОВАТЕЛИ") + " ===");
+        System.out.printf("%-10s | %-15s | %-15s | %-15s\n", "ID", "Name", "Type", "Extra");
+
+        for (User u : users) {
+            String type = u.getClass().getSimpleName();
+            String info = "-";
+            if (u instanceof Student s) info = "Year: " + s.getYearOfStudy();
+            else if (u instanceof Employee e) info = e.isResearcher() ? "Researcher" : "Employee";
+
+            System.out.printf("%-10s | %-15s | %-15s | %-15s\n", u.getId(), u.getName(), type, info);
         }
     }
 
-    public void viewAllActions(){
-        DataStorage db = DataStorage.getInstance();
-        System.out.println("\n=============================================");
-        System.out.println("                 All actions                 ");
-        System.out.println("=============================================");
 
-        if(!db.getActionLogs().isEmpty()){
-            for (UserActionLog u: db.getActionLogs()){
-                System.out.println(u);
-            }
-            System.out.println("=============================================");
-        }
-        else {
-            System.out.println("Action list is empty");
-        }
-    }
 }

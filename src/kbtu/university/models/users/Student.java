@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import kbtu.university.core.DataStorage;
+import kbtu.university.core.LocalizationManager;
 import kbtu.university.models.academic.Course;
 import kbtu.university.models.academic.Mark;
 import kbtu.university.models.academic.StudentOrganization;
@@ -15,142 +16,176 @@ public class Student extends User {
 
     private String major;
     private int yearOfStudy;
-    private int totalCredits;
-    private Map<Course, Mark> academicJournal;
-    private List<StudentOrganization> organizations = new ArrayList<>();
-
-    public Student(String id, String login, String password, String name, String major, int yearOfStudy){
+    private final Map<Course, Mark> academicJournal = new java.util.HashMap<>();
+    private int failCount = 0;
+    private int currentCredits = 0;
+    private List<String> organizations = new ArrayList<>();
+    public Student(String id, String login, String password, String name, String major, int yearOfStudy) {
         super(id, login, password, name);
         this.major = major;
         this.yearOfStudy = yearOfStudy;
-        this.totalCredits = 0;
-        this.academicJournal = new HashMap<>();
+        this.failCount= 0;
+        this.currentCredits = 0;
     }
 
-    public void registerForCourse(Course course){
-        if(!academicJournal.containsKey(course)){
-            academicJournal.put(course,new Mark());
-            System.out.println("[SUCCESS] Student registered for a course");
-        }else {
-            System.out.println("[ERROR] You`ve already registered");
-        }
-    }
-
-
-    public void joinOrganization(StudentOrganization organization) {
-        if (organization == null) {
-            System.out.println("[ERROR] Organization does not exist.");
-            return;
-        }
-
-        if (!this.organizations.contains(organization)) {
-            this.organizations.add(organization);
-            organization.addMember(this);
-
-            DataStorage.getInstance().getActionLogs().add(
-                    new UserActionLog(this.getId(), "JOIN_ORGANIZATION", "Joined club: " + organization.getName())
-            );
-            System.out.println("[SUCCESS] You successfully joined " + organization.getName());
-        } else {
-            System.out.println("[WARNING] You are already a member of " + organization.getName());
-        }
-    }
-
-    public double calculateTotalGpa(){
-        if (academicJournal.isEmpty()) return 0.0;
-
-        double totalWeightedGpa = 0.0;
-        int creditsAttempted = 0;
-
-        for (Map.Entry<Course, Mark> entry : academicJournal.entrySet()) {
-            Course course = entry.getKey();
-            Mark mark = entry.getValue();
-
-            totalWeightedGpa += mark.getGpaValue() * course.getCredits();
-            creditsAttempted += course.getCredits();
-        }
-
-        if (creditsAttempted == 0) return 0.0;
-        return totalWeightedGpa / creditsAttempted;
-    }
-
-    public void rateTeacher(Teacher teacher, int score) {
-        if (teacher == null) {
-            System.out.println("[ERROR] Teacher not found.");
-            return;
-        }
-        if (score < 1 || score > 10) {
-            System.out.println("[ERROR] Rating score must be between 1 and 10.");
-            return;
-        }
-
-        System.out.println("[SUCCESS] You rated teacher " + teacher.getName() + " with score: " + score);
-
-        DataStorage.getInstance().getActionLogs().add(
-                new UserActionLog(this.getId(), "RATE_TEACHER", "Rated " + teacher.getName() + " with " + score)
-        );
-    }
-
-    public void viewTranscript(){
-        System.out.println("\n=============================================");
-        System.out.println("                Transcript                   ");
-        System.out.println("=============================================");
-
+    public void viewMyCourses() {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        System.out.println("\n=== " + lm.getString("MY COURSES", "МЕНІҢ КУРСТАРЫМ", "МОИ КУРСЫ") + " ===");
         if (academicJournal.isEmpty()) {
-            System.out.println("You have`nt registered any course");
-            System.out.println("=============================================");
+            System.out.println(lm.getString("No courses.", "Курстар жоқ.", "Нет курсов."));
+            return;
+        }
+        for (Course c : academicJournal.keySet()) {
+            System.out.println(c);
+        }
+    }
+
+    public void registerForCourse(Course course) {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        if (course == null) return;
+
+        if (this.failCount >= 3) {
+            System.out.println(lm.getString(
+                    "[ERROR] Registration blocked! Too many fails (" + failCount + "). Max limit: 3",
+                    "[ҚАТЕ] Тіркелу бұғатталды! Қанағаттанарлықсыз бағалар саны тым көп (" + failCount + "). Шектеу: 3",
+                    "[ОШИБКА] Регистрация заблокирована! Слишком много фейлов (" + failCount + "). Лимит: 3"
+            ));
             return;
         }
 
-        for (Map.Entry<Course, Mark> entry : academicJournal.entrySet()) {
-            Course course = entry.getKey();
-            Mark mark = entry.getValue();
-            System.out.printf("%s (%d credits) -> %s\n",
-                    course.getName(), course.getCredits(), mark.toString());
+        if (!course.getTargetMajor().equalsIgnoreCase(this.major) || course.getTargetYear() != this.yearOfStudy) {
+            System.out.println(lm.getString(
+                    "[ERROR] This course is intended for " + course.getTargetMajor() + " year " + course.getTargetYear(),
+                    "[ҚАТЕ] Бұл курс келесі мамандыққа арналған: " + course.getTargetMajor() + ", курс: " + course.getTargetYear(),
+                    "[ОШИБКА] Этот курс предназначен для " + course.getTargetMajor() + " курса " + course.getTargetYear()
+            ));
+            return;
+        }
+        if (academicJournal.containsKey(course)) {
+            System.out.println(lm.getString(
+                    "[ERROR] Already registered for this course!",
+                    "[ҚАТЕ] Бұл курсқа тіркеліп қойғансыз!",
+                    "[ОШИБКА] Уже зарегистрирован на этот курс!"
+            ));
+            return;
         }
 
-        System.out.println("---------------------------------------------");
-        System.out.println("Total GPA %.2f\n" + calculateTotalGpa());
-        System.out.println("=============================================");
+        if (this.currentCredits + course.getCredits() > 21) {
+            System.out.println(lm.getString(
+                    "[ERROR] Credit limit exceeded! Max 21. Current: " + this.currentCredits + ", Course demands: " + course.getCredits(),
+                    "[ҚАТЕ] Кредит шектеуінен асып кетті! Макс 21. Қазіргі: " + this.currentCredits + ", Курсқа керек: " + course.getCredits(),
+                    "[ОШИБКА] Превышен лимит кредитов! Макс 21. Текущий: " + this.currentCredits + ", Требуется для курса: " + course.getCredits()
+            ));
+            return;
+        }
+        academicJournal.put(course, new Mark());
+        this.currentCredits += course.getCredits();
+        System.out.println(lm.getString(
+                "[SUCCESS] Registered for course: " + course.getCourseName(),
+                "[СӘТТІ] Курсқа тіркелдіңіз: " + course.getCourseName(),
+                "[УСПЕШНО] Зарегистрирован на курс: " + course.getCourseName()
+        ));
     }
 
-    public void viewOrganizations() {
-        System.out.println("\n=============================================");
-        System.out.println("       Organizations for " + getName());
-        System.out.println("=============================================");
-        if (organizations.isEmpty()) {
-            System.out.println("Not a member of any organization yet.");
-        } else {
-            for (StudentOrganization org : organizations) {
-                String role = org.getHead().equals(this) ? "HEAD" : "MEMBER";
-                System.out.println("- " + org.getName() + " [Role: " + role + "]");
+
+    public void viewCourseTeacherInfo(Course course) {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        DataStorage ds = DataStorage.getInstance();
+        boolean found = false;
+
+        for (Teacher t : ds.getTeachers()) {
+            if (t.getCourses().contains(course)) {
+                System.out.println(lm.getString("Teacher: ", "Оқытушы: ", "Преподаватель: ") + t.getName() + " (" + t.getPosition() + ") | Rating: " + t.getAverageRating());
+                found = true;
             }
         }
-        System.out.println("=============================================");
+        if (!found) {
+            System.out.println(lm.getString("No teacher assigned yet.", "Оқытушы әлі тағайындалмаған.", "Преподаватель еще не назначен."));
+        }
     }
 
-    public String getMajor() {
-        return major;
+    public void rateTeacher(Teacher teacher, double score) {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        if (teacher == null) return;
+
+        teacher.receiveRating(score);
+        System.out.println(lm.getString("[SUCCESS] Thank you for rating!", "[СӘТТІ] Бағалағаныңыз үшін рахмет!", "[УСПЕШНО] Спасибо за оценку!"));
     }
 
-    public int getYearOfStudy() {
-        return yearOfStudy;
+    public void viewMarks() {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        System.out.println("\n=== " + lm.getString("MY MARKS", "МЕНІҢ БАҒАЛАРЫМ", "МОИ ОЦЕНКИ") + " ===");
+        for (Map.Entry<Course, Mark> entry : academicJournal.entrySet()) {
+            System.out.println(entry.getKey().getCourseName() + ": " + entry.getValue());
+        }
     }
 
-    public int getTotalCredits() {
-        return totalCredits;
+    public double calculateGpa() {
+        if (academicJournal.isEmpty()) return 0.0;
+        double totalPoints = 0; int totalCredits = 0;
+        for (Map.Entry<Course, Mark> entry : academicJournal.entrySet()) {
+            totalPoints += entry.getValue().getGpaValue() * entry.getKey().getCredits();
+            totalCredits += entry.getKey().getCredits();
+        }
+        return totalCredits == 0 ? 0.0 : totalPoints / totalCredits;
     }
 
-    @Override
-    public String toString() {
-        return "Student: " + getName() + " Major " + major + " Year of Study " + yearOfStudy + " GPA: " + calculateTotalGpa();
+    public void viewTranscript() {
+        LocalizationManager lm = LocalizationManager.getInstance();
+        System.out.println("\n=== " + lm.getString("TRANSCRIPT", "ТРАНСКРИПТ", "ТРАНСКРИПТ") + " ===");
+        for (Map.Entry<Course, Mark> entry : academicJournal.entrySet()) {
+            System.out.printf("%s | Grade: %s\n", entry.getKey().getCourseName(), entry.getValue().grade());
+        }
+        System.out.printf("TOTAL GPA: %.2f\n", calculateGpa());
     }
 
-    public void setTotalCredits(int totalCredits) {
-        this.totalCredits = totalCredits;
+    public void joinOrganization(String orgName) {
+        LocalizationManager lm = LocalizationManager.getInstance();
+
+        List<String> myOrgs = getOrganizations();
+
+        if (!myOrgs.contains(orgName)) {
+            myOrgs.add(orgName);
+            System.out.println(lm.getString(
+                    "[SUCCESS] Joined organization: " + orgName,
+                    "[СӘТТІ] Ұйымға қосылдыңыз: " + orgName,
+                    "[УСПЕШНО] Вы вступили в организацию: " + orgName
+            ));
+        } else {
+            System.out.println(lm.getString(
+                    "[ERROR] Already a member.",
+                    "[ҚАТЕ] Сіз бұл ұйымның мүшесісіз.",
+                    "[ОШИБКА] Вы уже являетесь участником."
+            ));
+        }
     }
 
-    public Map<Course, Mark> getAcademicJournal() {
-        return academicJournal;
+    public String getMajor() { return major; }
+    public int getYearOfStudy() { return yearOfStudy; }
+    public Map<Course, Mark> getAcademicJournal() { return academicJournal; }
+    public int getFailCount() {
+        return failCount;
+    }
+
+    public void setYearOfStudy(int yearOfStudy) {
+        this.yearOfStudy = yearOfStudy;
+    }
+
+    public void setFailCount(int failCount) {
+        this.failCount = failCount;
+    }
+
+    public int getCurrentCredits() {
+        return currentCredits;
+    }
+    public List<String> getOrganizations() {
+        if (this.organizations == null) {
+            this.organizations = new ArrayList<>();
+        }
+        return this.organizations;
+    }
+
+    public void setCurrentCredits(int currentCredits) {
+        this.currentCredits = currentCredits;
     }
 }
