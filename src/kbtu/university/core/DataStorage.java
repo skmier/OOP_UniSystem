@@ -20,6 +20,9 @@ public class DataStorage implements Serializable {
     private DataStorage(){};
 
     public static DataStorage getInstance() {
+        if (instance == null) {
+            instance = load();
+        }
         return instance;
     }
 

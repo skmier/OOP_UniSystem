@@ -20,7 +20,7 @@ public abstract class User implements Serializable,Comparable<User> {
         this.login = login;
         this.password = password;
         this.name = name;
-        this.language = Language.KZ;
+        this.language = Language.ENG;
     }
 
     public boolean isAuthenticated(String loginOrId, String password){
